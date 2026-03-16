@@ -1,0 +1,14 @@
+(defrecord vec2
+  (float x)
+  (float y))
+
+(defrecord entity
+  (long id)
+  (int tag)
+  (vec2 pos)
+  (vec2 vel)
+  (vec2 acc)
+  (float health)
+  (float damage)
+  (string name)
+  (int sprite))
