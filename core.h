@@ -1581,4 +1581,23 @@ int core_sexpr_read(core_Arena * a, const char * str, core_Sexpr * out)
 ;
 #endif /*CORE_IMPLEMENTATION*/
 
+core_Sexpr core_sexpr_nth(core_Sexpr s, int n)
+#ifdef CORE_IMPLEMENTATION
+{
+    assert(s.tag == CORE_TAG_CONS);
+    assert(n >= 1);
+    return (n == 1)
+        ? s.as.cons->car
+        : core_sexpr_nth(s.as.cons->cdr, n - 1);
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+#define core_sexpr_first(s) core_sexpr_nth(s, 1)
+#define core_sexpr_second(s) core_sexpr_nth(s, 2)
+#define core_sexpr_third(s) core_sexpr_nth(s, 3)
+#define core_sexpr_fourth(s) core_sexpr_nth(s, 4)
+#define core_sexpr_fifth(s) core_sexpr_nth(s, 5)
+
 #endif /*CORE_H*/

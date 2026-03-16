@@ -6,20 +6,16 @@
 #define STR CORE_TAG_STRING
 #define SYM CORE_TAG_SYMBOL
 
-
 void process_record(core_Sexpr s) {
     assert(s.tag == CONS);
-    core_Sexpr car = s.as.cons->car;
-    core_Sexpr cdr = s.as.cons->cdr;
-    char * name = car.as.string;
+    char * name = core_sexpr_first(s).as.string;
+    s = s.as.cons->cdr;
 
     printf("typedef struct {\n");
-    while(cdr.tag == CONS) {
-        car = cdr.as.cons->car;
-        cdr = cdr.as.cons->cdr;
-
-        char * field_type = car.as.cons->car.as.symbol;
-        char * field_name = car.as.cons->cdr.as.cons->car.as.symbol;
+    while(item) {
+        
+        char * field_type = core_sexpr_first(item).as.symbol;
+        char * field_name = core_sexpr_second(item).as.symbol;
         printf("    ");
         if(strcmp(field_type, "string") == 0) {
             printf("char * ");
