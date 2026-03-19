@@ -2,74 +2,42 @@
 #define CORE_IMPLEMENTATION
 #include "core.h"
 
-/* void process_record(core_Sexpr s) { */
-/*     char * name; */
-/*     s_Cons item; */
-/*     assert(s.tag == CONS); */
-/*     name = core_sexpr_first(s).as.string; */
-/*     item = s.as.cons->cdr; */
-
-/*     printf("typedef struct {\n"); */
-/*     for(;item.as.cons->cdr.tag == CONS; item = item->as.cons */
-        
-/*         char * field_type = core_sexpr_first(item).as.symbol; */
-/*         char * field_name = core_sexpr_second(item).as.symbol; */
-/*         printf("    "); */
-/*         if(strcmp(field_type, "string") == 0) { */
-/*             printf("char * "); */
-/*         } else { */
-/*             printf("%s ", field_type); */
-/*         } */
-/*         printf("%s;\n", field_name); */
-                    
-/*     } */
-/*     printf("} %s;\n\n", name); */
+void handle_field_definition(Sexpr * v, int i, void * ctx) {
+    Sexpr string = s_sym("string");
+    printf("    ");
     
-/* } */
+    if(s_equal(s_first(v), &string)) {
+        printf("const char *");
+    } else {
+        s_print(s_first(v));
+    }
+    printf(" ");
+    s_print(s_second(v));
+    printf(";\n");
+}
 
-/* void process(core_Sexpr s) { */
-/*     assert(s.tag == CONS); */
-/*     core_Sexpr car = s.as.cons->car; */
-/*     core_Sexpr cdr = s.as.cons->cdr; */
-/*     assert(car.tag == SYM); */
-/*     if(strcmp(car.as.string, "defrecord") == 0) { */
-/*         process_record(cdr); */
-/*     } */
-/* } */
+void handle_defstruct(Sexpr * v) {
+    printf("typedef struct {\n");
+    Sexpr * name = s_car(v);
+    s_do_list(s_cdr(v), handle_field_definition, NULL);
+    printf("} %s;\n", name->str.v);
+}
+
+void handle_toplevel_form(Sexpr * v, int i, void * ctx) {
+    Sexpr def = s_sym("defrecord");
+    if(s_equal(s_car(v), &def)) {
+        handle_defstruct(s_cdr(v));
+    } else {
+        s_fprint(stderr, s_car(v));
+        fprintf(stderr, "\n");
+        CORE_FATAL_ERROR("Unexpected list header");
+    }
+}
 
 int main() {
     core_Arena a = {0};
     Sexpr * s = s_read(&a, "structs.sexpr");
-    Sexpr * iter = s;
-    Sexpr * item;
-    Sexpr * sub_iter;
-    Sexpr * sub_item;
-    int i = 0;
-
-
-    S_DO_LIST(item, iter) {
-        Sexpr * name;
-
-
-        sub_iter = item;
-        i = 0;
-
-        printf("typedef struct {\n");
-        S_DO_LIST(sub_item, sub_iter) {
-            if(i == 0) {
-                if(!s_equal(*sub_item, s_sym("DEFRECORD"))) 
-                    CORE_FATAL_ERROR("Expected DEFRECORD form");
-            } else if(i == 1) {
-                name = sub_item;
-            } else {
-                printf("    ");
-            }
-            s_print(sub_item);
-            printf(" ");
-            ++i;
-        }
-        puts("");
-    }
-    puts("");
+    s_do_list(s, handle_toplevel_form, NULL);
+    core_arena_free(&a);
     return 0;
 }
