@@ -2,6 +2,13 @@
   (float x)
   (float y))
 
+
+(defrecord rect
+   (float x)
+   (float y)
+   (float h)
+   (float w))
+
 (defrecord entity
   (long id)
   (int tag)
@@ -11,4 +18,7 @@
   (float health)
   (float damage)
   (string name)
-  (int sprite))
+  (int sprite)
+  (rect hitbox)
+  (string type)
+  (vec2[] path))

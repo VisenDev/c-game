@@ -1,4 +1,4 @@
- /*
+/*
 MIT License
 
 Copyright (c) 2025 Robert Burnett
@@ -15,7 +15,7 @@ copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
@@ -59,7 +59,7 @@ SOFTWARE.
 #   define CORE_C99
 #else
 #   define CORE_C89
-#endif /*CORE_STDC__*/
+#endif /*CORE_STDC*/
 
 
 /**** OPERATING SYSTEM ****/
@@ -437,11 +437,23 @@ char * core_arena_strdup(core_Arena * arena, const char * str)
 } while (0)
 
 #define core_vec_copy_items(dst, src, arena) do { \
-    long i; \
-    for(i = 0; i < (src)->len; ++i) { \
+    unsigned int _i_; \
+    for(_i_ = 0; _i_ < (src)->len; ++i) { \
         core_vec_append(dst, arena, (src)->items[i]); \
     } \
 } while(0)
+
+#define core_vec_append_unique(vec, arena, item, equality_function) do {                 \
+    unsigned int _i_;                                                                    \
+    for(_i_ = 0; _i_ < (vec)->len; ++_i_) {                                              \
+        if(equality_function(item, (vec)->items[_i_])) goto core_vec_append_unique_skip; \
+    }                                                                                    \
+    core_vec_append(vec, arena, item);                                                   \
+        core_vec_append_unique_skip: ;                                 \
+} while(0)
+
+typedef core_Vec(const char *) core_StrVec;
+typedef core_Vec(int) core_IntVec;
 
 
 /**** CTYPE ****/
@@ -656,6 +668,16 @@ char * core_file_read_all_arena(core_Arena * arena, const char * filepath)
 #define CORE_MIN3(a, b, c) CORE_MIN(CORE_MIN(a, b), c)
 #define CORE_MAX3(a, b, c) CORE_MAX(CORE_MAX(a, b), c)
 
+/**** LIST ****/
+#define core_List(T) struct core_List##T { T v; struct core_List##T * next; }
+#define core_list_push(list, arena, item) do {              \
+        void * tmp = (list);                                \
+        (list) = core_arena_alloc((arena)sizeof(*(list)));  \
+        (list)->v = item;                                   \
+        (list)->next = tmp;                                 \
+    } while (0)
+
+
 /**** STRING ****/
 void core_strnfmt(char * dst, unsigned long dst_len, unsigned long * dst_fill_pointer, const char * src, const unsigned long src_len)
 #ifdef CORE_IMPLEMENTATION
@@ -687,8 +709,28 @@ void core_strfmt(char * dst, unsigned long dst_len, unsigned long * dst_fill_poi
 ;
 #endif /*CORE_IMPLEMENTATION*/
 
+core_Bool core_streql(const char * lhs, const char * rhs)
+#ifdef CORE_IMPLEMENTATION
+{
+    return strcmp(lhs, rhs) == 0;
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
 
-#define core_streql(lhs, rhs) strcmp(lhs, rhs) == 0
+core_Bool core_streql_any(const char * str, const char ** options, size_t n)
+#ifdef CORE_IMPLEMENTATION
+{
+    size_t i;
+    for(i = 0; i < n; ++i) {
+        if(core_streql(str, options[i])) return CORE_TRUE;
+    }
+    return CORE_FALSE;
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
 
 char * core_strdup_via_arena(core_Arena * arena, const char * str, size_t len)
 #ifdef CORE_IMPLEMENTATION
@@ -1450,15 +1492,6 @@ core_Bool core_trash(const char * filename)
 
 
 /**** SEXPR ****/
-#ifdef CORE_SEXPR_STRIP_PREFIX
-#   define s_Tag core_sexpr_Tag
-#   define S_NIL  CORE_SEXPR_NIL
-#   define S_SYM  CORE_SEXPR_SYM
-#   define S_REAL CORE_SEXPR_REAL
-#   define S_INT  CORE_SEXPR_INT
-#   define S_STR  CORE_SEXPR_STR
-#   define S_CONS CORE_SEXPR_CONS
-#endif
 typedef enum {
     CORE_SEXPR_NIL = 0,
     CORE_SEXPR_SYM,
@@ -1468,47 +1501,29 @@ typedef enum {
     CORE_SEXPR_CONS
 } core_sexpr_Tag;
 
-#ifdef CORE_SEXPR_STRIP_PREFIX
-#   define Sexpr core_Sexpr
-#endif
 typedef union core_Sexpr core_Sexpr;
 
-#ifdef CORE_SEXPR_STRIP_PREFIX
-#   define s_Cons core_sexpr_Cons
-#endif
 typedef struct {
     core_sexpr_Tag tag;
     core_Sexpr * car;
     core_Sexpr * cdr;
 } core_sexpr_Cons;
 
-#ifdef CORE_SEXPR_STRIP_PREFIX
-#   define s_Int core_sexpr_Int
-#endif
 typedef struct {
     core_sexpr_Tag tag;
     long v;
 } core_sexpr_Int;
 
-#ifdef CORE_SEXPR_STRIP_PREFIX
-#   define s_Str core_sexpr_Str
-#endif
 typedef struct {
     core_sexpr_Tag tag;
     const char * v;
 } core_sexpr_Str;
 
-#ifdef CORE_SEXPR_STRIP_PREFIX
-#   define s_Sym core_sexpr_Sym
-#endif
 typedef struct {
     core_sexpr_Tag tag;
     const char * v;
 } core_sexpr_Sym;
 
-#ifdef CORE_SEXPR_STRIP_PREFIX
-#   define s_Real core_sexpr_Real
-#endif
 typedef struct {
     core_sexpr_Tag tag;
     double v;
@@ -1531,18 +1546,6 @@ union core_Sexpr {
         result.fieldname.v = v;                          \
         return result;                                   \
     }
-
-#ifdef CORE_SEXPR_STRIP_PREFIX
-#   define s_nil core_sexpr_nil
-#   define s_int core_sexpr_int
-#   define s_real core_sexpr_real
-#   define s_str core_sexpr_str
-#   define s_sym core_sexpr_sym
-#   define s_cons core_sexpr_cons
-#   define s_fprint core_sexpr_fprint
-#   define s_print core_sexpr_print
-#   define s_read core_sexpr_read
-#endif
 
 CORE_SEXPR_INIT_FN(core_sexpr_int, long, i, CORE_SEXPR_INT)
 CORE_SEXPR_INIT_FN(core_sexpr_real, double, f, CORE_SEXPR_REAL)
@@ -1600,10 +1603,6 @@ core_Sexpr core_sexpr_str_or_sym(const char * str_or_sym)
 #endif /*CORE_IMPLEMENTATION*/
 
 #if CORE_STDC >= CORE_STDC_C99
-
-#ifdef CORE_SEXPR_STRIP_PREFIX
-#   define SEXPR CORE_SEXPR
-#endif
 
 #define CORE_SEXPR(...)                             \
     _Generic((CORE_VAARG_FIRST(__VA_ARGS__)),       \
@@ -1887,12 +1886,6 @@ core_Sexpr * core_sexpr_nth(core_Sexpr * s, int n)
 ;
 #endif /*CORE_IMPLEMENTATION*/
 
-
-#ifdef CORE_SEXPR_STRIP_PREFIX
-#   define s_car core_sexpr_car
-#   define s_cdr core_sexpr_cdr
-#endif /*CORE_SEXPR_STRIP_PREFIX*/
-
 core_Sexpr * core_sexpr_car(core_Sexpr * cons)
 #ifdef CORE_IMPLEMENTATION
 {
@@ -1912,17 +1905,6 @@ core_Sexpr * core_sexpr_cdr(core_Sexpr * cons)
 #else
 ;
 #endif /*CORE_IMPLEMENTATION*/
-
-#ifdef CORE_SEXPR_STRIP_PREFIX
-#   define s_equal core_sexpr_equal
-#   define s_do_list core_sexpr_do_list
-#   define s_nth core_sexpr_nth
-#   define s_first(s) core_sexpr_first(s)
-#   define s_second(s) core_sexpr_second(s)
-#   define s_third(s) core_sexpr_third(s)
-#   define s_fourth(s) core_sexpr_fourth(s)
-#   define s_fifth(s) core_sexpr_fifth(s)
-#endif
 
 #define core_sexpr_first(s) core_sexpr_nth(s, 1)
 #define core_sexpr_second(s) core_sexpr_nth(s, 2)
@@ -1973,4 +1955,278 @@ core_Bool core_sexpr_equal(core_Sexpr * lhs, core_Sexpr * rhs)
 #endif /*CORE_IMPLEMENTATION*/
 
 
-#endif /*CORE_H*/
+/**** COMPARE ****/
+int core_compare_string(const void * lhs, const void * rhs)
+#ifdef CORE_IMPLEMENTATION
+{
+    return strcmp(*(const char * const *)lhs, *(const char * const *)rhs);
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+int core_compare_int(const void * lhs, const void * rhs)
+#ifdef CORE_IMPLEMENTATION
+{
+    return *(const int *)lhs < *(const int *)rhs;
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+
+/**** STRIP_PREFIX ****/
+
+/* the following definitions were automatically generated
+   by running strip_prefix.c */
+
+#ifdef CORE_STRIP_PREFIX
+#   define ALIGNOF CORE_ALIGNOF
+#   define ANSI_BLUE CORE_ANSI_BLUE
+#   define ANSI_CYAN CORE_ANSI_CYAN
+#   define ANSI_GREEN CORE_ANSI_GREEN
+#   define ANSI_MAGENTA CORE_ANSI_MAGENTA
+#   define ANSI_RED CORE_ANSI_RED
+#   define ANSI_RESET CORE_ANSI_RESET
+#   define ANSI_YELLOW CORE_ANSI_YELLOW
+#   define ARRAY_LEN CORE_ARRAY_LEN
+#   define ATTRIBUTES_AVAILABLE CORE_ATTRIBUTES_AVAILABLE
+#   define BITARRAY CORE_BITARRAY
+#   define BITSET_SET CORE_BITSET_SET
+#   define CLANG CORE_CLANG
+#   define CONCAT CORE_CONCAT
+#   define CONCAT1 CORE_CONCAT1
+#   define CONCAT2 CORE_CONCAT2
+#   define CONCAT3 CORE_CONCAT3
+#   define CONCAT4 CORE_CONCAT4
+#   define CONCAT5 CORE_CONCAT5
+#   define CONCAT6 CORE_CONCAT6
+#   define CONCAT7 CORE_CONCAT7
+#   define CONCAT8 CORE_CONCAT8
+#   define CONCAT9 CORE_CONCAT9
+#   define DEFER CORE_DEFER
+#   define DEFERRED CORE_DEFERRED
+#   define ERR CORE_ERR
+#   define FATAL_ERROR CORE_FATAL_ERROR
+#   define GLIBC CORE_GLIBC
+#   define LIKELY_FALSE CORE_LIKELY_FALSE
+#   define LIKELY_TRUE CORE_LIKELY_TRUE
+#   define LOG CORE_LOG
+#   define LOG_ERROR CORE_LOG_ERROR
+#   define LOG_SRC CORE_LOG_SRC
+#   define MAX CORE_MAX
+#   define MAX3 CORE_MAX3
+#   define MAX_SYMBOLS CORE_MAX_SYMBOLS
+#   define MIN CORE_MIN
+#   define MIN3 CORE_MIN3
+#   define NODISCARD CORE_NODISCARD
+#   define NORETURN CORE_NORETURN
+#   define OK CORE_OK
+#   define ON_EXIT_MAX_FUNCTIONS CORE_ON_EXIT_MAX_FUNCTIONS
+#   define SEXPR CORE_SEXPR
+#   define SEXPR_CONS CORE_SEXPR_CONS
+#   define SEXPR_INIT_FN CORE_SEXPR_INIT_FN
+#   define SEXPR_INT CORE_SEXPR_INT
+#   define SEXPR_NIL CORE_SEXPR_NIL
+#   define SEXPR_REAL CORE_SEXPR_REAL
+#   define SEXPR_STR CORE_SEXPR_STR
+#   define SEXPR_SYM CORE_SEXPR_SYM
+#   define STATIC_ASSERT CORE_STATIC_ASSERT
+#   define STDC CORE_STDC
+#   define STDC_C11 CORE_STDC_C11
+#   define STDC_C17 CORE_STDC_C17
+#   define STDC_C23 CORE_STDC_C23
+#   define STDC_C99 CORE_STDC_C99
+#   define SYMBOL_MAX_LEN CORE_SYMBOL_MAX_LEN
+#   define TODO CORE_TODO
+#   define UNREACHABLE CORE_UNREACHABLE
+#   define VAARG_FIRST CORE_VAARG_FIRST
+#   define Allocation core_Allocation
+#   define Arena core_Arena
+#   define BitArray1024 core_BitArray1024
+#   define BitArray128 core_BitArray128
+#   define BitArray16 core_BitArray16
+#   define BitArray2048 core_BitArray2048
+#   define BitArray256 core_BitArray256
+#   define BitArray32 core_BitArray32
+#   define BitArray4096 core_BitArray4096
+#   define BitArray512 core_BitArray512
+#   define BitArray64 core_BitArray64
+#   define BitArray8 core_BitArray8
+#   define BitArray8192 core_BitArray8192
+#   define BitVec core_BitVec
+#   define Bool core_Bool
+#   define Hashmap core_Hashmap
+#   define HashmapBuckets core_HashmapBuckets
+#   define HashmapKeys core_HashmapKeys
+#   define HashmapNode core_HashmapNode
+#   define IntVec core_IntVec
+#   define List core_List
+#   define SNPrintfParameters core_SNPrintfParameters
+#   define Sexpr core_Sexpr
+#   define Slice core_Slice
+#   define StrVec core_StrVec
+#   define Symbol core_Symbol
+#   define Symbols core_Symbols
+#   define Time core_Time
+#   define Vec core_Vec
+#   define arena_alloc core_arena_alloc
+#   define arena_allocation_new core_arena_allocation_new
+#   define arena_free core_arena_free
+#   define arena_realloc core_arena_realloc
+#   define arena_reclaim_memory core_arena_reclaim_memory
+#   define arena_strdup core_arena_strdup
+#   define bitarray_set core_bitarray_set
+#   define bitvec_set core_bitvec_set
+#   define compare_int core_compare_int
+#   define compare_string core_compare_string
+#   define double_has_fractional_part core_double_has_fractional_part
+#   define errprint core_errprint
+#   define file_exists core_file_exists
+#   define file_modified_timestamp core_file_modified_timestamp
+#   define file_needs_update core_file_needs_update
+#   define file_read_all core_file_read_all
+#   define file_read_all_arena core_file_read_all_arena
+#   define file_read_string core_file_read_string
+#   define gensym core_gensym
+#   define hash core_hash
+#   define hashmap_get core_hashmap_get
+#   define hashmap_get_index core_hashmap_get_index
+#   define hashmap_needs_resize core_hashmap_needs_resize
+#   define hashmap_record_new_key core_hashmap_record_new_key
+#   define hashmap_rehash core_hashmap_rehash
+#   define hashmap_set core_hashmap_set
+#   define isidentifier core_isidentifier
+#   define issymbol core_issymbol
+#   define itoa core_itoa
+#   define list_push core_list_push
+#   define on_exit_ctx core_on_exit_ctx
+#   define on_exit_fn_count core_on_exit_fn_count
+#   define on_exit_fns core_on_exit_fns
+#   define peek core_peek
+#   define print_backtrace core_print_backtrace
+#   define profiler_deinit core_profiler_deinit
+#   define profiler_init core_profiler_init
+#   define profiler_log core_profiler_log
+#   define profiler_output_file core_profiler_output_file
+#   define profiler_start core_profiler_start
+#   define profiler_stop core_profiler_stop
+#   define profiler_timestamp core_profiler_timestamp
+#   define sexpr_Callback core_sexpr_Callback
+#   define sexpr_Cons core_sexpr_Cons
+#   define sexpr_Int core_sexpr_Int
+#   define sexpr_Real core_sexpr_Real
+#   define sexpr_Str core_sexpr_Str
+#   define sexpr_Sym core_sexpr_Sym
+#   define sexpr_Tag core_sexpr_Tag
+#   define sexpr_alloc core_sexpr_alloc
+#   define sexpr_car core_sexpr_car
+#   define sexpr_cdr core_sexpr_cdr
+#   define sexpr_cons core_sexpr_cons
+#   define sexpr_cons_alloc core_sexpr_cons_alloc
+#   define sexpr_cons_fprint core_sexpr_cons_fprint
+#   define sexpr_do_list core_sexpr_do_list
+#   define sexpr_equal core_sexpr_equal
+#   define sexpr_error core_sexpr_error
+#   define sexpr_fifth core_sexpr_fifth
+#   define sexpr_first core_sexpr_first
+#   define sexpr_fourth core_sexpr_fourth
+#   define sexpr_fprint core_sexpr_fprint
+#   define sexpr_int core_sexpr_int
+#   define sexpr_nil core_sexpr_nil
+#   define sexpr_nth core_sexpr_nth
+#   define sexpr_print core_sexpr_print
+#   define sexpr_read core_sexpr_read
+#   define sexpr_read_cons core_sexpr_read_cons
+#   define sexpr_read_ex core_sexpr_read_ex
+#   define sexpr_read_number core_sexpr_read_number
+#   define sexpr_read_string core_sexpr_read_string
+#   define sexpr_read_symbol core_sexpr_read_symbol
+#   define sexpr_real core_sexpr_real
+#   define sexpr_second core_sexpr_second
+#   define sexpr_str core_sexpr_str
+#   define sexpr_str_or_sym core_sexpr_str_or_sym
+#   define sexpr_sym core_sexpr_sym
+#   define sexpr_third core_sexpr_third
+#   define skip_whitespace core_skip_whitespace
+#   define snprintf_exec_parameters core_snprintf_exec_parameters
+#   define snprintf_state core_snprintf_state
+#   define snprintf_state_base core_snprintf_state_base
+#   define snprintf_state_flags core_snprintf_state_flags
+#   define snprintf_state_length_1 core_snprintf_state_length_1
+#   define snprintf_state_length_2 core_snprintf_state_length_2
+#   define snprintf_state_precision core_snprintf_state_precision
+#   define snprintf_state_precision_maybe core_snprintf_state_precision_maybe
+#   define snprintf_state_specifier core_snprintf_state_specifier
+#   define snprintf_state_width core_snprintf_state_width
+#   define strdup_via_arena core_strdup_via_arena
+#   define streql core_streql
+#   define streql_any core_streql_any
+#   define strfmt core_strfmt
+#   define string_search_replace core_string_search_replace
+#   define stringify_double core_stringify_double
+#   define stringify_long core_stringify_long
+#   define strnfmt core_strnfmt
+#   define symbol_get core_symbol_get
+#   define symbol_intern core_symbol_intern
+#   define trash core_trash
+#   define trash_dir_create core_trash_dir_create
+#   define trash_dir_path core_trash_dir_path
+#   define trash_linux core_trash_linux
+#   define vec_append core_vec_append
+#   define vec_append_unique core_vec_append_unique
+#   define vec_append_unique_skip core_vec_append_unique_skip
+#   define vec_copy_items core_vec_copy_items
+#   define xdg_data_home core_xdg_data_home
+#endif /*CORE_STRIP_PREFIX*/
+#ifdef CORE_SEXPR_STRIP_PREFIX
+#   define Sexpr core_Sexpr
+#   define S_CONS CORE_SEXPR_CONS
+#   define S_INIT_FN CORE_SEXPR_INIT_FN
+#   define S_INT CORE_SEXPR_INT
+#   define S_NIL CORE_SEXPR_NIL
+#   define S_REAL CORE_SEXPR_REAL
+#   define S_STR CORE_SEXPR_STR
+#   define S_STRIP_PREFIX CORE_SEXPR_STRIP_PREFIX
+#   define S_SYM CORE_SEXPR_SYM
+#   define s_Callback core_sexpr_Callback
+#   define s_Cons core_sexpr_Cons
+#   define s_Int core_sexpr_Int
+#   define s_Real core_sexpr_Real
+#   define s_Str core_sexpr_Str
+#   define s_Sym core_sexpr_Sym
+#   define s_Tag core_sexpr_Tag
+#   define s_alloc core_sexpr_alloc
+#   define s_car core_sexpr_car
+#   define s_cdr core_sexpr_cdr
+#   define s_cons core_sexpr_cons
+#   define s_cons_alloc core_sexpr_cons_alloc
+#   define s_cons_fprint core_sexpr_cons_fprint
+#   define s_do_list core_sexpr_do_list
+#   define s_equal core_sexpr_equal
+#   define s_error core_sexpr_error
+#   define s_fifth core_sexpr_fifth
+#   define s_first core_sexpr_first
+#   define s_fourth core_sexpr_fourth
+#   define s_fprint core_sexpr_fprint
+#   define s_int core_sexpr_int
+#   define s_nil core_sexpr_nil
+#   define s_nth core_sexpr_nth
+#   define s_print core_sexpr_print
+#   define s_read core_sexpr_read
+#   define s_read_cons core_sexpr_read_cons
+#   define s_read_ex core_sexpr_read_ex
+#   define s_read_number core_sexpr_read_number
+#   define s_read_string core_sexpr_read_string
+#   define s_read_symbol core_sexpr_read_symbol
+#   define s_real core_sexpr_real
+#   define s_second core_sexpr_second
+#   define s_str core_sexpr_str
+#   define s_str_or_sym core_sexpr_str_or_sym
+#   define s_sym core_sexpr_sym
+#   define s_third core_sexpr_third
+#endif /*CORE_SEXPR_STRIP_PREFIX*/
+
+#endif /*_CORE_H_*/
+
+
