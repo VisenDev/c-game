@@ -21,4 +21,6 @@
   (int sprite)
   (rect hitbox)
   (string type)
-  (vec2[] path))
+  ((array vec2) path)
+  (vec2 destination)
+  (int animation_id))
