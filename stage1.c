@@ -44,13 +44,13 @@ void generate_serialize_value_statement(Sexpr * stype, char * accessor) {
         const char * type = stype->sym.v;
 
         if(streql(type, "float")) {
-            printf("    fprintf(stream, \"%%f\", %s);\n", accessor);
+            printf("    fprintf(stream, \" %%f\", %s);\n", accessor);
         } else if(streql(type, "int")) {
-            printf("    fprintf(stream, \"%%d\", %s);\n", accessor);
+            printf("    fprintf(stream, \" %%d\", %s);\n", accessor);
         } else if(streql(type, "long")) {
-            printf("    fprintf(stream, \"%%ld\", %s);\n", accessor);
+            printf("    fprintf(stream, \" %%ld\", %s);\n", accessor);
         } else if(streql(type, "string")) {
-            printf("    fprintf(stream, \"\\\"%%s\\\"\", %s);\n", accessor);
+            printf("    fprintf(stream, \" \\\"%%s\\\"\", %s);\n", accessor);
         } else {
             printf("    serialize_");
             print_type(stype, CORE_TRUE);
@@ -70,7 +70,6 @@ void generate_serialize_field_statement(Sexpr * field, int i, void * ctx) {
     char buf[1024];
     core_snprintf(buf, sizeof(buf), "value->%s", name);
     /* printf("    /\*%s*\/\n", name); */
-    printf("    fprintf(stream, \" :%s \");\n", name);
     generate_serialize_value_statement(stype, buf);
 } 
 
@@ -78,7 +77,7 @@ void generate_serialize_function(Sexpr * sname, Sexpr * fields) {
     const char * name = sname->str.v;
     printf("void serialize_%s(FILE * stream, %s * value) {\n", name, name);
     printf("    if(!stream || !value) return;\n");
-    printf("    fprintf(stream, \" #S(%s\");\n", name);
+    printf("    fprintf(stream, \" (%s\");\n", name);
     s_do_list(fields, generate_serialize_field_statement, NULL);
     printf("    fprintf(stream, \")\");\n");
     printf("}\n\n");
@@ -86,7 +85,7 @@ void generate_serialize_function(Sexpr * sname, Sexpr * fields) {
     printf("void serialize_%s_array(FILE * stream, %s * items, size_t n) {\n", name, name);
     printf("    size_t i;\n");
     printf("    if(!stream || !items) return;\n");
-    printf("    fprintf(stream, \"(list \");\n");
+    printf("    fprintf(stream, \" (list \");\n");
     printf("    for(i = 0; i < n; ++i) {\n");
     generate_serialize_value_statement(sname, "items[i]");
     printf("    }");
@@ -95,12 +94,43 @@ void generate_serialize_function(Sexpr * sname, Sexpr * fields) {
 
 }
 
+void generate_deserialize_field_statement(Sexpr * field, int i, void * ctx) {
+    Sexpr * type = s_first(field);
+    Sexpr * name = s_second(field);
+    if(type->tag == S_SYM) {
+        if(1/* s_symeql(type, "float") */) {
+            printf("    if(core_sexpr_nth(input, %d)->TAG != CORE_SEXPR_REAL)"
+                   " return CORE_FALSE;\n", i);
+            printf("    output->%s = ");
+        }
+    } else {
+        // ARRAY TYPE
+
+    }
+}
+
 void generate_deserialize_function(Sexpr * sname, Sexpr * fields) {
-    printf("core_Bool deserialize_%s(FILE * stream, Sexpr * input, %s * output) {\n"
-           print_type(sname, CORE_TRUE), print_);
+    {
+        printf("core_Bool deserialize_");
+        print_type(sname, CORE_TRUE);
+        printf("(FILE * stream, Sexpr * input, ");
+        print_type(sname, CORE_FALSE);
+        printf(" * output) {\n");
+    }
+    printf("    core_Sexpr * fields;\n");
     printf("    if(!stream || !input) return CORE_FALSE;\n");
     printf("    if(input->tag != CORE_SEXPR_CONS) return CORE_FALSE;\n");
-    printf("    
+    printf("    fields = core_sexpr_cdr(input);\n");
+    printf("    if(!input->cons.car) return CORE_FALSE;\n");
+    printf("    if(input->cons.car->tag != CORE_SEXPR_SYMBOL) return CORE_FALSE;\n");
+    {
+        printf("    if(!core_sexpr_symeql(input->cons.car, \"");
+        print_type(sname, CORE_TRUE);
+        printf("\") return CORE_FALSE;\n");
+    }
+    s_do_list(fields, generate_deserialize_field_statement, NULL);
+    printf("    return CORE_TRUE;\n");
+    printf("}\n\n");
 }
 
 void handle_defstruct(Sexpr * v) {
@@ -110,6 +140,7 @@ void handle_defstruct(Sexpr * v) {
     printf("} %s;\n\n", name);
 
     generate_serialize_function(s_car(v), s_cdr(v));
+    generate_deserialize_function(s_car(v), s_cdr(v));
 }
 
 void handle_toplevel_form(Sexpr * v, int i, void * ctx) {

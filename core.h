@@ -1618,20 +1618,20 @@ core_Sexpr core_sexpr_str_or_sym(const char * str_or_sym)
 #endif /*CORE_STDC >= CORE_STDC_C99*/
 
 
-void core_sexpr_fprint(FILE * fp, core_Sexpr * s);
+int core_sexpr_fprint(FILE * fp, core_Sexpr * s);
 
-void core_sexpr_cons_fprint(FILE * fp, core_sexpr_Cons c)
+int core_sexpr_cons_fprint(FILE * fp, core_sexpr_Cons c)
 #ifdef CORE_IMPLEMENTATION
 {
     core_sexpr_fprint(fp, c.car);
     if(c.cdr->tag == CORE_SEXPR_NIL) {
-        return;
+        return 0;
     } else if(c.cdr->tag == CORE_SEXPR_CONS) {
         fprintf(fp, " ");
-        core_sexpr_cons_fprint(fp, c.cdr->cons);
+        return 1 + core_sexpr_cons_fprint(fp, c.cdr->cons);
     } else {
         fprintf(fp, " . ");
-        core_sexpr_fprint(fp, c.cdr);
+        return 3 + core_sexpr_fprint(fp, c.cdr);
     }
 }
 #else
@@ -1641,24 +1641,25 @@ void core_sexpr_cons_fprint(FILE * fp, core_sexpr_Cons c)
 #define core_sexpr_print(sexpr) core_sexpr_fprint(stdout, (sexpr))
 
 #ifdef CORE_IMPLEMENTATION
-void core_sexpr_fprint(FILE * fp, core_Sexpr * s) {
+int core_sexpr_fprint(FILE * fp, core_Sexpr * s) {
+    int count = 0;
     if(!s) {
-        fprintf(fp, "#<NULL>");
-        return;
+        return fprintf(fp, "#<NULL>");
     }
     switch(s->tag) {
-    case CORE_SEXPR_NIL: fprintf(fp, "NIL"); break;
-    case CORE_SEXPR_SYM: fprintf(fp, "%s", s->sym.v); break;
-    case CORE_SEXPR_STR: fprintf(fp, "\"%s\"", s->str.v); break;
-    case CORE_SEXPR_REAL: fprintf(fp, "%f", s->f.v); break;
-    case CORE_SEXPR_INT: fprintf(fp, "%ld", s->i.v); break;
+    case CORE_SEXPR_NIL: return fprintf(fp, "NIL");
+    case CORE_SEXPR_SYM: return fprintf(fp, "%s", s->sym.v);
+    case CORE_SEXPR_STR: return fprintf(fp, "\"%s\"", s->str.v);
+    case CORE_SEXPR_REAL: return fprintf(fp, "%f", s->f.v);
+    case CORE_SEXPR_INT: return fprintf(fp, "%ld", s->i.v);
     case CORE_SEXPR_CONS:
-        fprintf(fp, "(");
-        core_sexpr_cons_fprint(fp, s->cons);
-        fprintf(fp, ")");
-        break;
+        count += fprintf(fp, "(");
+        count += core_sexpr_cons_fprint(fp, s->cons);
+        count += fprintf(fp, ")");
+        return count;
     default: CORE_UNREACHABLE;
     }
+    return 0;
 }
 #endif /*CORE_IMPLEMENTATION*/
 
@@ -1954,6 +1955,71 @@ core_Bool core_sexpr_equal(core_Sexpr * lhs, core_Sexpr * rhs)
 ;
 #endif /*CORE_IMPLEMENTATION*/
 
+/*uses ~a for arguments like common lisp, only Sexpr * ptrs should be passed*/
+int core_sexpr_vfformat(FILE * stream, const char * fmt, va_list args)
+#ifdef CORE_IMPLEMENTATION
+{
+    int i = 0;
+    int count = 0;
+    core_Bool esc = CORE_FALSE;
+    assert(fmt);
+    for(;fmt[i] != 0;++i) {
+        if(esc) {
+            esc = CORE_FALSE;
+            if(fmt[i] == '~') {
+                fputc('~', stream);
+                ++count;
+            } else if(fmt[i] == 'a') {
+                count += core_sexpr_fprint(stream, va_arg(args, core_Sexpr *));
+            } else {
+                fprintf(stderr, "%s", fmt);
+                CORE_FATAL_ERROR("Invalid control string");
+            }
+        } else {
+            if(fmt[i] == '~') {
+                esc = CORE_TRUE;
+            } else {
+                fputc(fmt[i], stream);
+                ++count;
+            }
+        }
+    }
+    return count;
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+
+int core_sexpr_fformat(FILE * stream, const char * fmt, ...)
+#ifdef CORE_IMPLEMENTATION
+{
+    va_list args;
+    int count;
+    va_start(args, fmt);
+    count = core_sexpr_vfformat(stream, fmt, args);
+    va_end(args);
+    return count;
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+int core_sexpr_format(const char * fmt, ...)
+#ifdef CORE_IMPLEMENTATION
+{
+    va_list args;
+    int count;
+    va_start(args, fmt);
+    count = core_sexpr_vfformat(stdout, fmt, args);
+    va_end(args);
+    return count;
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+
 
 /**** COMPARE ****/
 int core_compare_string(const void * lhs, const void * rhs)
@@ -2128,8 +2194,10 @@ int core_compare_int(const void * lhs, const void * rhs)
 #   define sexpr_do_list core_sexpr_do_list
 #   define sexpr_equal core_sexpr_equal
 #   define sexpr_error core_sexpr_error
+#   define sexpr_fformat core_sexpr_fformat
 #   define sexpr_fifth core_sexpr_fifth
 #   define sexpr_first core_sexpr_first
+#   define sexpr_format core_sexpr_format
 #   define sexpr_fourth core_sexpr_fourth
 #   define sexpr_fprint core_sexpr_fprint
 #   define sexpr_int core_sexpr_int
@@ -2148,6 +2216,7 @@ int core_compare_int(const void * lhs, const void * rhs)
 #   define sexpr_str_or_sym core_sexpr_str_or_sym
 #   define sexpr_sym core_sexpr_sym
 #   define sexpr_third core_sexpr_third
+#   define sexpr_vfformat core_sexpr_vfformat
 #   define skip_whitespace core_skip_whitespace
 #   define snprintf_exec_parameters core_snprintf_exec_parameters
 #   define snprintf_state core_snprintf_state
@@ -2205,8 +2274,10 @@ int core_compare_int(const void * lhs, const void * rhs)
 #   define s_do_list core_sexpr_do_list
 #   define s_equal core_sexpr_equal
 #   define s_error core_sexpr_error
+#   define s_fformat core_sexpr_fformat
 #   define s_fifth core_sexpr_fifth
 #   define s_first core_sexpr_first
+#   define s_format core_sexpr_format
 #   define s_fourth core_sexpr_fourth
 #   define s_fprint core_sexpr_fprint
 #   define s_int core_sexpr_int
@@ -2225,6 +2296,7 @@ int core_compare_int(const void * lhs, const void * rhs)
 #   define s_str_or_sym core_sexpr_str_or_sym
 #   define s_sym core_sexpr_sym
 #   define s_third core_sexpr_third
+#   define s_vfformat core_sexpr_vfformat
 #endif /*CORE_SEXPR_STRIP_PREFIX*/
 
 #endif /*_CORE_H_*/
