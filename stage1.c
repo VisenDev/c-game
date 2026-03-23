@@ -99,12 +99,12 @@ void generate_deserialize_field_statement(Sexpr * field, int i, void * ctx) {
     Sexpr * name = s_second(field);
     if(type->tag == S_SYM) {
         if(1/* s_symeql(type, "float") */) {
-            printf("    if(core_sexpr_nth(input, %d)->TAG != CORE_SEXPR_REAL)"
+            printf("    if(core_sexpr_nth(input, %d)->tag != CORE_SEXPR_REAL)"
                    " return CORE_FALSE;\n", i);
-            printf("    output->%s = ");
+            printf("    output->%s = TODO("");\n", name->str.v);
         }
     } else {
-        // ARRAY TYPE
+        /* ARRAY TYPE*/
 
     }
 }
@@ -122,11 +122,11 @@ void generate_deserialize_function(Sexpr * sname, Sexpr * fields) {
     printf("    if(input->tag != CORE_SEXPR_CONS) return CORE_FALSE;\n");
     printf("    fields = core_sexpr_cdr(input);\n");
     printf("    if(!input->cons.car) return CORE_FALSE;\n");
-    printf("    if(input->cons.car->tag != CORE_SEXPR_SYMBOL) return CORE_FALSE;\n");
+    printf("    if(input->cons.car->tag != CORE_SEXPR_SYM) return CORE_FALSE;\n");
     {
         printf("    if(!core_sexpr_symeql(input->cons.car, \"");
         print_type(sname, CORE_TRUE);
-        printf("\") return CORE_FALSE;\n");
+        printf("\")) return CORE_FALSE;\n");
     }
     s_do_list(fields, generate_deserialize_field_statement, NULL);
     printf("    return CORE_TRUE;\n");
@@ -158,7 +158,14 @@ int main() {
     Arena a = {0};
     Sexpr * s = s_read(&a, "structs.sexpr");
     printf("#include <stdio.h>\n");
+    printf("#include <assert.h>\n");
     printf("#include \"core.h\"\n");
+    printf("#define serialize_double core_serialize_double\n"
+           "#define serialize_float core_serialize_float\n"
+           "#define serialize_int core_serialize_int\n"
+           "#define serialize_long core_serialize_long\n"
+           "#define serialize_short core_serialize_short\n"
+           "#define serialize_string core_serialize_string\n");
     s_do_list(s, handle_toplevel_form, NULL);
     arena_free(&a);
     return 0;
