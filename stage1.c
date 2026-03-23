@@ -95,6 +95,14 @@ void generate_serialize_function(Sexpr * sname, Sexpr * fields) {
 
 }
 
+void generate_deserialize_function(Sexpr * sname, Sexpr * fields) {
+    printf("core_Bool deserialize_%s(FILE * stream, Sexpr * input, %s * output) {\n"
+           print_type(sname, CORE_TRUE), print_);
+    printf("    if(!stream || !input) return CORE_FALSE;\n");
+    printf("    if(input->tag != CORE_SEXPR_CONS) return CORE_FALSE;\n");
+    printf("    
+}
+
 void handle_defstruct(Sexpr * v) {
     printf("typedef struct {\n");
     const char * name = s_car(v)->sym.v;
