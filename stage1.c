@@ -88,7 +88,7 @@ void generate_serialize_function(Sexpr * sname, Sexpr * fields) {
     printf("    fprintf(stream, \" (list \");\n");
     printf("    for(i = 0; i < n; ++i) {\n");
     generate_serialize_value_statement(sname, "items[i]");
-    printf("    }");
+    printf("    }\n");
     printf("    fprintf(stream, \")\");\n");
     printf("}\n\n");
 
@@ -96,14 +96,37 @@ void generate_serialize_function(Sexpr * sname, Sexpr * fields) {
 
 void generate_deserialize_field_statement(Sexpr * field, int i, void * ctx) {
     Sexpr * type = s_first(field);
-    Sexpr * name = s_second(field);
+    Sexpr * sname = s_second(field);
+    char * name;
+    assert(sname->tag == S_SYM);
+    name = sname->sym.v;
+    printf("    tmp = core_sexpr_nth(fields, %d);\n", i);
     if(type->tag == S_SYM) {
-        if(1/* s_symeql(type, "float") */) {
-            printf("    if(core_sexpr_nth(input, %d)->tag != CORE_SEXPR_REAL)"
-                   " return CORE_FALSE;\n", i);
-            printf("    output->%s = TODO("");\n", name->str.v);
+        if(streql(type->sym.v, "float") || streql(type->sym.v, "double")) {
+            printf("    if(!tmp || tmp->tag != CORE_SEXPR_REAL) return CORE_FALSE;\n");
+            printf("    output->%s = tmp->real.v;\n", name);
+        } else if(streql(type->sym.v, "int")) {
+            printf("    if(!tmp || tmp->tag != CORE_SEXPR_INT) return CORE_FALSE;\n");
+            printf("    output->%s = tmp->int_.v;\n", name);
+        } else {
+            printf("    if(!deserialize_");
+            print_type(type, CORE_TRUE);
+            printf("(arena, tmp, &output->%s)) return CORE_FALSE;\n", name);
         }
     } else {
+        printf("    if(core_sexpr_car(tmp)->tag != CORE_SEXPR_SYM) return CORE_FALSE;\n");
+        printf("    if(!core_streql(core_sexpr_car(tmp)->sym.v, \"list\")) return CORE_FALSE;\n");
+        printf("    memset(&output->%s, sizeof(output->%s), 0);\n", name, name);
+        printf("    {\n");
+        printf("        core_Sexpr * next = core_sexpr_cdr(tmp);\n");
+        printf("        for(;next->tag == CORE_SEXPR_CONS; next = next->cons.cdr) {\n");
+        printf("            core_Sexpr * item = core_sexpr_car(next);\n");
+        printf("            core_vec_append(&output->%s, arena, deserialize_", name);
+        print_type(type, CORE_TRUE);
+        /*TODO: this function should really be using some sort of generate_deserialize_value statement fn*/
+        printf("(arena, /*TODO*/, /*TODO*/));\n");
+        printf("        }\n    }\n");
+        /* /\* printf *\/("    /\*TODO array types*\/\n") */;
         /* ARRAY TYPE*/
 
     }
@@ -113,11 +136,12 @@ void generate_deserialize_function(Sexpr * sname, Sexpr * fields) {
     {
         printf("core_Bool deserialize_");
         print_type(sname, CORE_TRUE);
-        printf("(FILE * stream, Sexpr * input, ");
+        printf("(core_Arena * arena, Sexpr * input, ");
         print_type(sname, CORE_FALSE);
         printf(" * output) {\n");
     }
     printf("    core_Sexpr * fields;\n");
+    printf("    core_Sexpr * tmp;\n");
     printf("    if(!stream || !input) return CORE_FALSE;\n");
     printf("    if(input->tag != CORE_SEXPR_CONS) return CORE_FALSE;\n");
     printf("    fields = core_sexpr_cdr(input);\n");
