@@ -24,3 +24,15 @@
   ((array vec2) path)
   (vec2 destination)
   (int animation_id))
+
+(defrecord particle
+  (float x)
+  (float y)
+  (float lifetime)
+  (float color)
+  (float size))
+
+(defrecord map
+  ((array entity) entities)
+  ((array particle) particles)
+  ((array (array (array int))) entity_position_lookups))
